@@ -2,6 +2,7 @@
 
 ## tu.el
 
+- 2026-11-04 一時入力で `無変換` で日本語モードを OFF にしない
 - 2026-11-03 first commit
 - 2026-11-03 tu.el from ja-kana.el
 

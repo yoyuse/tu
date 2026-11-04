@@ -648,6 +648,8 @@ KATAKANA が non-nil ならかたかなに変換する."
 (defvar tu-transient-map
   (let* ((map (make-sparse-keymap)))
     (set-keymap-parent map global-map)
+    (define-key map (kbd "<henkan>") 'tu-hiragana-or-katakana)
+    (define-key map (kbd "<muhenkan>") 'tu-ascii-or-transient)
     map)
   "一時入力用キーマップ.")
 
