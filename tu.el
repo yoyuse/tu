@@ -343,6 +343,16 @@
 
 (require 'kkc)
 
+;; Provided that `kkc-current-key' is [A B C D E F G H I], the current
+;; conversion target is [A B C D E F], and the sequence of which
+;; conversion is found is [A B C D]:
+;;
+;;                                A B C D E F G H I
+;; kkc-overlay-head (black):     |<--------->|
+;; kkc-overlay-tail (underline):         |<------->|
+;; kkc-length-head:              |<--------->|
+;; kkc-length-converted:         |<----->|
+
 (defvar tu-kkc-max-length 20 "読みの最大長さ.") ; XXX
 (defvar tu-kkc-left nil "変換対象にならなかった左側の部分文字列.")
 (defvar tu-kkc-keymap
@@ -364,7 +374,7 @@
     length))
 
 (defun tu-kkc-substring (&optional n)
-  "カーソルの左側の変換できる最長の部分文字列を変換する."
+  "カーソルの左側の変換可能最長部分文字列を変換する."
   (interactive "P")
   (let* ((kkc-input-method-title "漢字") ; was "漢"
          (kkc-keymap tu-kkc-keymap)
@@ -373,55 +383,81 @@
          (skkdic-prefix '(0))
          length)
     (if (setq length n)
-        (tu-kkc-region-substring (- (point) length) (point) 'whole)
+        (tu-kkc-region (- (point) length) (point))
       (setq length (tu-kkc-substring-length))
       (if (< 0 length)
-          (tu-kkc-region-substring (- (point) length) (point))
+          (tu-kkc-region (- (point) length) (point) 'sub)
         ;; XXX: self-insert-command
         (call-interactively 'self-insert-command)))))
 
+(defun tu-vcons (elt vec)
+  "ベクタ VEC の先頭に要素 ELT を挿入した新しいベクタを返す."
+  (vconcat (cons elt (append vec nil))))
+
+(defun tu-vcdr (vec)
+  "ベクタ VEC の先頭の要素を取り除いた新しいベクタを返す."
+  (vconcat (cdr-safe (append vec nil))))
+
 (defun tu-kkc-shorter ()
-  "読みを 1 文字縮める."
+  "左側を 1 文字縮める."
   (interactive)
-  (let* ((length kkc-length-head))
-    (when (< 1 length)
-      (kkc-cancel)
-      (tu-kkc-region-substring (- (point) (1- length)) (point) 'whole))))
+  (when (< 1 kkc-length-head)
+    (kkc-hiragana)
+    (setq kkc-length-head (1- kkc-length-head))
+    (let* (;; (len kkc-length-head)
+           (rev (reverse (string-to-list tu-kkc-left)))
+           (new-left (reverse (cons (aref kkc-current-key 0) rev))))
+      (setq kkc-length-converted 0)
+      (setq kkc-current-key (tu-vcdr kkc-current-key))
+      (setq tu-kkc-left (vconcat new-left))
+      ;; (kkc-lookup-key kkc-length-head nil (< kkc-length-head len))
+      ;; (message "kkc-current-key <%S>" kkc-current-key)
+      (kkc-lookup-key kkc-length-head 'postfix)
+      ;; (kkc-lookup-key kkc-length-head)
+      ;; /
+      (let ((pos (1+ (overlay-start kkc-overlay-head)))
+            (tail (overlay-end kkc-overlay-tail)))
+        (move-overlay kkc-overlay-head pos tail)
+        (move-overlay kkc-overlay-tail tail tail)))
+    (kkc-update-conversion 'all)))
 
 (defun tu-kkc-longer ()
-  "読みを 1 文字伸ばす."
+  "左側を 1 文字伸ばす."
   (interactive)
-  (let* ((length kkc-length-head))
-    (when (< (point-min) (- (point) length))
-      (kkc-cancel)
-      (tu-kkc-region-substring (- (point) (1+ length)) (point) 'whole))))
+  (when (< 0 (length tu-kkc-left))
+    (setq kkc-length-head (1+ kkc-length-head))
+    (let* (;; (len kkc-length-head)
+           (rev (reverse (string-to-list tu-kkc-left)))
+           (c (car-safe rev))
+           (new-left (reverse (cdr-safe rev))))
+      (setq kkc-length-converted 0)
+      (setq kkc-current-key (tu-vcons c kkc-current-key))
+      (setq tu-kkc-left (vconcat new-left))
+      (kkc-hiragana)
+      ;; (kkc-lookup-key kkc-length-head nil (< kkc-length-head len))
+      ;; (message "kkc-current-key <%S>" kkc-current-key)
+      (kkc-lookup-key kkc-length-head 'postfix)
+      ;; (kkc-lookup-key kkc-length-head)
+      ;; /
+      (let ((pos (1- (overlay-start kkc-overlay-head)))
+            (tail (overlay-end kkc-overlay-tail)))
+        (move-overlay kkc-overlay-head pos tail)
+        (move-overlay kkc-overlay-tail tail tail)))
+    (kkc-update-conversion 'all)))
 
 (defun tu-kkc-katakana-longer ()
-  "かたかなに変換する. すでにかたかななら, かたかなのまま読みを 1 文字伸ばす."
+  "かたかなに変換する. すでにかたかななら, かたかなのまま左側を 1 文字伸ばす."
   (interactive)
-  (let* ((length kkc-length-head))
-    (if (/= (car kkc-current-conversions) -1)
-        (kkc-katakana)
-      (when (< (point-min) (- (point) length))
-        (kkc-cancel)
-        (tu-kkc-region-substring (- (point) (1+ length)) (point) 'whole
-                                      'katakana)))))
+  (if (/= (car kkc-current-conversions) -1) ; XXX
+      (kkc-katakana)
+    (tu-kkc-longer)
+    (kkc-katakana)))
 
-;; Provided that `kkc-current-key' is [A B C D E F G H I], the current
-;; conversion target is [A B C D E F], and the sequence of which
-;; conversion is found is [A B C D]:
-;;
-;;                                A B C D E F G H I
-;; kkc-overlay-head (black):     |<--------->|
-;; kkc-overlay-tail (underline):         |<------->|
-;; kkc-length-head:              |<--------->|
-;; kkc-length-converted:         |<----->|
-
-(defun tu-kkc-region-substring (from to &optional whole katakana)
-  "FROM と TO の間のリージョン内の右側の変換できる最長の部分文字列を変換する.
-WHOLE が non-nil なら全体を変換する.
-KATAKANA が non-nil ならかたかなに変換する."
-  (interactive "r")
+(defun tu-kkc-region (from to &optional sub)
+  "FROM と TO の間のリージョン内を変換する.
+SUB が nil なら, リージョン全体を変換する.
+SUB が non-nil なら, リージョン内右側の変換可能最長部分文字列を変換する."
+  (interactive "r\nP")
   (setq kkc-original-kana (buffer-substring-no-properties from to))
   (setq tu-kkc-left "")
   (goto-char from)
@@ -445,32 +481,26 @@ KATAKANA が non-nil ならかたかなに変換する."
       (let ((current-input-method-title kkc-input-method-title)
             (input-method-function nil)
             (modified-p (buffer-modified-p))
-            (first t))
+            (first t)
+            ;; //
+            (original-kana kkc-original-kana))
         (while (not (kkc-lookup-key kkc-length-head nil first))
-          (setq kkc-length-head (1- kkc-length-head)
-                first nil)
           ;;
-          (unless whole
-            (setq
-             tu-kkc-left (concat tu-kkc-left
-                                      (substring kkc-original-kana 0 1))
-             kkc-original-kana (substring kkc-original-kana 1)
-             kkc-current-key (string-to-vector kkc-original-kana)))
+          (when sub
+            (setq tu-kkc-left (concat tu-kkc-left
+                                      (substring original-kana 0 1))
+                  original-kana (substring original-kana 1)
+                  kkc-current-key (string-to-vector original-kana)))
           ;; /
-          )
+          (setq kkc-length-head (1- kkc-length-head)
+                first nil))
         ;;
-        (unless whole
-          (move-overlay kkc-overlay-head (+ from (length tu-kkc-left)) to))
-        ;; /
-        ;;
-        (when whole
+        (if sub
+            (move-overlay kkc-overlay-head (+ from (length tu-kkc-left)) to)
           (setq kkc-length-head (length kkc-current-key)))
         ;; /
         (goto-char to)
         (kkc-update-conversion 'all)
-        ;;
-        (when katakana (kkc-katakana))
-        ;; /
         (setq kkc-next-count 1 kkc-prev-count 0)
         (if (and (>= kkc-next-count kkc-show-conversion-list-count)
                  (>= (length kkc-current-conversions) 3))
@@ -496,6 +526,11 @@ KATAKANA が non-nil ならかたかなに変換する."
                             ((eq cmd 'kkc-prev)
                              (setq kkc-prev-count (1+ kkc-prev-count)
                                    kkc-next-count 0))
+                            ;;
+                            ((eq cmd 'kkc-cancel)
+                             (setq kkc-next-count 0 kkc-prev-count 0
+                                   cmd 'tu-kkc-cancel))
+                            ;; /
                             (t
                              (setq kkc-next-count 0 kkc-prev-count 0)))
                       (call-interactively cmd))
@@ -508,45 +543,45 @@ KATAKANA が non-nil ならかたかなに変換する."
               (kkc-terminate))))
         ;;
         (force-mode-line-update)
-        ;;
-        ;; XXX
-        ;; (goto-char (overlay-end kkc-overlay-tail))
-        ;; (- (overlay-start kkc-overlay-head) from)
-        ;;
-        ;; バグってる!
-        ;; (goto-char (or (overlay-end kkc-overlay-tail) to))
-        ;; (- (or (overlay-start kkc-overlay-head) from) from)
-        ;;
-        ;; (message "from<%S> to<%S>\nkkc-overlay-head<%S>\nkkc-overlay-tail<%S>"
-        ;;          from to kkc-overlay-head kkc-overlay-tail)
-        ;; fix-261102/
-        ;; これで様子見…
-        (goto-char (or (overlay-end kkc-overlay-tail) to))
-        (- (or (overlay-start kkc-overlay-head) to) from)
-        ;; /XXX
-        )
+        (goto-char (overlay-end kkc-overlay-tail))
+        (- (overlay-start kkc-overlay-head) from))
     (delete-overlay kkc-overlay-head)
     (delete-overlay kkc-overlay-tail)))
 
+(defun tu-kkc-cancel ()
+  "Exit from KKC mode by canceling any conversions."
+  (interactive)
+  (goto-char (overlay-start kkc-overlay-head))
+  (delete-region (overlay-start kkc-overlay-head)
+                 (overlay-end kkc-overlay-tail))
+  ;;
+  ;; (insert kkc-original-kana)
+  (insert (substring kkc-original-kana (length tu-kkc-left)))
+  ;; /
+  (setq kkc-converting nil))
+
 ;; keybind
 
-(define-key tu-kkc-keymap (kbd "M-i") 'kkc-shorter)
-(define-key tu-kkc-keymap (kbd "M-o") 'kkc-longer)
-(define-key tu-kkc-keymap (kbd "M-I") 'kkc-shorter-conversion)
-(define-key tu-kkc-keymap (kbd "M-O") 'kkc-longer-phrase)
-(define-key tu-kkc-keymap (kbd "C-k") 'tu-kkc-katakana-longer)
-(define-key tu-kkc-keymap (kbd "C-i") 'tu-kkc-shorter)
-(define-key tu-kkc-keymap (kbd "C-S-i") 'tu-kkc-longer)
-(define-key tu-kkc-keymap (kbd "<backtab>") 'tu-kkc-longer)
-(define-key tu-kkc-keymap (kbd "C-g") 'kkc-cancel)
-(define-key tu-kkc-keymap (kbd "l") nil)
-(define-key tu-kkc-keymap (kbd "L") nil)
-(define-key tu-kkc-keymap (kbd "H") nil)
-(define-key tu-kkc-keymap (kbd "I") nil)
-(define-key tu-kkc-keymap (kbd "K") nil)
-(define-key tu-kkc-keymap (kbd "O") nil)
-(define-key tu-kkc-keymap (kbd "C-l") 'kkc-show-conversion-list-or-next-group)
-(define-key tu-kkc-keymap (kbd "C-S-l") 'kkc-show-conversion-list-or-prev-group)
+(let ((map tu-kkc-keymap))
+  (define-key map (kbd "C-o") 'kkc-longer)
+  (define-key map (kbd "C-S-o") 'kkc-shorter)
+  ;; (define-key map (kbd "M-i") 'kkc-shorter)
+  ;; (define-key map (kbd "M-o") 'kkc-longer)
+  ;; (define-key map (kbd "M-I") 'kkc-shorter-conversion)
+  ;; (define-key map (kbd "M-O") 'kkc-longer-phrase)
+  (define-key map (kbd "C-k") 'tu-kkc-katakana-longer)
+  (define-key map (kbd "C-i") 'tu-kkc-shorter)
+  (define-key map (kbd "C-S-i") 'tu-kkc-longer)
+  (define-key map (kbd "<backtab>") 'tu-kkc-longer)
+  (define-key map (kbd "C-g") 'kkc-cancel)
+  (define-key map (kbd "l") nil)
+  (define-key map (kbd "L") nil)
+  (define-key map (kbd "H") nil)
+  (define-key map (kbd "I") nil)
+  (define-key map (kbd "K") nil)
+  (define-key map (kbd "O") nil)
+  (define-key map (kbd "C-l") 'kkc-show-conversion-list-or-next-group)
+  (define-key map (kbd "C-S-l") 'kkc-show-conversion-list-or-prev-group))
 
 (dolist (n (string-split kkc-show-conversion-list-index-chars "" t))
   (define-key tu-kkc-keymap (kbd n) nil))
