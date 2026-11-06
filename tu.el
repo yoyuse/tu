@@ -560,9 +560,17 @@ SUB が non-nil なら, リージョン内右側の変換可能最長部分文�
   ;; /
   (setq kkc-converting nil))
 
+(defun tu-kkc-back-to-start ()
+  "変換を確定し, 変換開始点までカーソルを戻す."
+  (interactive)
+  (let ((start (overlay-start kkc-overlay-head)))
+    (move-overlay kkc-overlay-tail start start)
+    (kkc-terminate)))
+
 ;; keybind
 
 (let ((map tu-kkc-keymap))
+  (define-key map (kbd "C-b") 'tu-kkc-back-to-start)
   (define-key map (kbd "C-o") 'kkc-longer)
   (define-key map (kbd "C-S-o") 'kkc-shorter)
   ;; (define-key map (kbd "M-i") 'kkc-shorter)
