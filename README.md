@@ -172,6 +172,19 @@ emacs -batch -L . -f batch-byte-compile ja-dic-katakana.el
 - ASCII モードでは、タイプしたキーは英数字のままバッファに入力されます
 - `変換` をタイプすると、ひらがなモードに戻ります
 
+### 親指漢直
+
+- ひらがなは USかな で、漢字やかたかなは `SPC` を押しながら TT-code で直接入力する入力方法です
+- [ttt.el](https://github.com/yoyuse/ttt) が必要です
+- `SPC` を漢直シフトとして使うための設定が必要です
+  - 漢直シフトは、 `SPC` を押している間、タイプした文字に `|` (VERTICAL LINE) を前置するという手法を採用しています
+  - macOS 用に Karabiner-Elements 設定の例 tu-kanchoku.json を含めました
+
+参考
+
+- [「親指漢直」とは何か？(1) - 錬金術師の実験室](https://web.archive.org/web/20211204133509/http://homeposition.net/~m%28as%29m/blog/2015/08/whats-oyayubi-kanchoku-1.html)
+- [DvorakJとGoogle日本語入力の連携による各種キー配列への対応 - 錬金術師の実験室](https://web.archive.org/web/20211204141027/http://homeposition.net/~m%28as%29m/blog/2015/12/15-advent.html)
+
 ----
 
 ## ライセンス

@@ -1020,6 +1020,72 @@ installed together with Emacs.")))
   (tu-ascii-or-transient 'isearch))
 
 ;;; ------------------------------------------------------------------
+;;; 親指漢直
+
+;; tu-kanchoku
+
+(defvar tu-use-shift-rules t)
+(defvar tu-use-kanchoku-shift t)
+
+(defvar tu-shift-rules
+  '(("A" . "1") ("S" . "2") ("D" . "3") ("F" . "4") ("G" . "5")
+    ("H" . "6") ("J" . "7") ("K" . "8") ("L" . "9") (":" . "0")
+    ;; tu-kanchoku-shift 用
+    ("Q" . "/") ("W" . "%") ;; ("R" . "￥") ("T" . "\"") ("Y" . "_")
+    ("U" . "?") ("I" . "(") ("O" . ")") ("P" . "!")
+    ("X" . ".") ("C" . ",")))
+
+(defun tu-self-insert-command (n)
+  (interactive "p")
+  (if (not tu-use-shift-rules)
+      (call-interactively 'self-insert-command)
+    (let* ((ch (char-to-string last-command-event))
+           (ch (cdr-safe (assoc ch tu-shift-rules)))
+           (last-command-event (if ch (string-to-char ch) last-command-event)))
+      (call-interactively 'self-insert-command))))
+
+(defun tu-isearch-printing-char (n)
+  (interactive "p")
+  (if (or (not tu-use-shift-rules)
+          (not (member current-input-method '("tu" "tu-katakana"))))
+      (call-interactively 'isearch-printing-char)
+    (let* ((ch (char-to-string last-command-event))
+           (ch (cdr-safe (assoc ch tu-shift-rules)))
+           (last-command-event (if ch (string-to-char ch) last-command-event)))
+      (call-interactively 'isearch-printing-char))))
+
+(dolist (elt tu-shift-rules)
+  (define-key tu-mode-map (kbd (car elt)) 'tu-self-insert-command)
+  (define-key tu-katakana-mode-map (kbd (car elt)) 'tu-self-insert-command)
+  (define-key isearch-mode-map (kbd (car elt)) 'tu-isearch-printing-char))
+
+(when (require 'ttt nil t)
+  (defun tu-kanchoku-shift ()
+    (interactive)
+    (if (or (not tu-use-shift-rules) (not tu-use-kanchoku-shift))
+        (call-interactively 'self-insert-command)
+      (let* ((ch (ttt--trans (read-char)))
+             (ch (or (car-safe (rassoc ch tu-shift-rules)) ch))
+             (ev (string-to-list ch)))
+        (when (not (string-empty-p ch))
+          (setq unread-command-events (append ev unread-command-events))))))
+  ;;
+  (defun tu-isearch-kanchoku-shift (n)
+    (interactive "p")
+    (if (or (not tu-use-shift-rules) (not tu-use-kanchoku-shift)
+            (not (member current-input-method '("tu" "tu-katakana"))))
+        (call-interactively 'isearch-printing-char)
+      (tu-kanchoku-shift)))
+  ;;
+  (defun tu-isearch-ttt-reset (orig-fun &rest args)
+    (ttt--reset))
+  ;;
+  (define-key tu-mode-map (kbd "|") 'tu-kanchoku-shift)
+  (define-key isearch-mode-map (kbd "|") 'tu-isearch-kanchoku-shift)
+  (add-hook 'post-self-insert-hook 'ttt--reset)
+  (advice-add 'isearch-printing-char :after 'tu-isearch-ttt-reset))
+
+;;; ------------------------------------------------------------------
 ;;; provide
 
 (provide 'tu)
