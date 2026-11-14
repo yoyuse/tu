@@ -38,10 +38,6 @@
 
 ;; (when (require 'tu nil t) (setq default-input-method "tu"))
 
-;;; History:
-
-;; 2026-11-03 tu.el from ja-kana.el
-
 ;;; Code:
 
 (require 'quail)
@@ -1070,20 +1066,27 @@ installed together with Emacs.")))
         (when (not (string-empty-p ch))
           (setq unread-command-events (append ev unread-command-events))))))
   ;;
-  (defun tu-isearch-kanchoku-shift (n)
-    (interactive "p")
-    (if (or (not tu-use-shift-rules) (not tu-use-kanchoku-shift)
-            (not (member current-input-method '("tu" "tu-katakana"))))
-        (call-interactively 'isearch-printing-char)
-      (tu-kanchoku-shift)))
+  ;; (defun tu-isearch-kanchoku-shift (n)
+  ;;   (interactive "p")
+  ;;   (if (or (not tu-use-shift-rules) (not tu-use-kanchoku-shift)
+  ;;           (not (member current-input-method '("tu" "tu-katakana"))))
+  ;;       (call-interactively 'isearch-printing-char)
+  ;;     (tu-kanchoku-shift)))
+  (defun tu-isearch-kanchoku-shift-ad (orig-fun &rest args)
+    (if (and (eq last-command-event ?|)
+             tu-use-shift-rules tu-use-kanchoku-shift
+             (member current-input-method '("tu" "tu-katakana")))
+        (tu-kanchoku-shift)
+      (apply orig-fun args)))
   ;;
   (defun tu-isearch-ttt-reset (orig-fun &rest args)
     (ttt--reset))
   ;;
   (define-key tu-mode-map (kbd "|") 'tu-kanchoku-shift)
-  (define-key isearch-mode-map (kbd "|") 'tu-isearch-kanchoku-shift)
+  ;; (define-key isearch-mode-map (kbd "|") 'tu-isearch-kanchoku-shift)
   (add-hook 'post-self-insert-hook 'ttt--reset)
-  (advice-add 'isearch-printing-char :after 'tu-isearch-ttt-reset))
+  (advice-add 'isearch-printing-char :after 'tu-isearch-ttt-reset)
+  (advice-add 'isearch-printing-char :around 'tu-isearch-kanchoku-shift-ad))
 
 ;;; ------------------------------------------------------------------
 ;;; provide

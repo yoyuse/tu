@@ -2,6 +2,7 @@
 
 ## tu.el
 
+- 2026-11-14 `tu-isearch-kanchoku-shift-ad`
 - 2026-11-12 親指漢直 (実験的機能)
 - 2026-11-06 `C-b` to `tu-kkc-back-to-start`
 - 2026-11-05 `tu-kkc-region` まわりを書き換え
